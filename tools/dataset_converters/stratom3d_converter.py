@@ -19,12 +19,13 @@ def get_info(
     # Create the info file
     info = []
     # TODO: Do I need the sample_idx key?
-    for frame_id in frame_ids:
+    for cnt, frame_id in enumerate(frame_ids):
         lidar_path = f"{sensor_name}/{frame_id}.bin"
         if not relative_path:
             lidar_path = Path(root_dir) / lidar_path
         frame_info = {
             "frame_id": frame_id,
+            "sample_idx": cnt,
             "lidar_points": {
                 "num_pts_feats": num_points_feats,
                 "lidar_path": str(lidar_path),
@@ -36,6 +37,13 @@ def get_info(
         for idx in range(len(annotations)):
             if "bbox_label_3d" not in annotations[idx]:
                 annotations[idx]["bbox_label_3d"] = 0
+            annotations[idx]['name'] = 'dunnage'
+            annotations[idx]['truncated'] = 0
+            annotations[idx]['occluded'] = 0
+            annotations[idx]['alpha'] = 0
+            annotations[idx]['bbox_label'] = annotations[idx]['bbox_label_3d']
+            annotations[idx]['score'] = 1.0
+
         frame_info["instances"] = annotations
         info.append(frame_info)
         info_dict = {

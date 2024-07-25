@@ -77,7 +77,7 @@ class KittiMetric(BaseMetric):
         self.default_cam_key = default_cam_key
         self.backend_args = backend_args
 
-        allowed_metrics = ['bbox', 'img_bbox', 'mAP', 'LET_mAP']
+        allowed_metrics = ['bbox', 'img_bbox', 'mAP', 'LET_mAP', '3d']
         self.metrics = metric if isinstance(metric, list) else [metric]
         for metric in self.metrics:
             if metric not in allowed_metrics:
@@ -130,7 +130,8 @@ class KittiMetric(BaseMetric):
                         kitti_annos['truncated'].append(instance['truncated'])
                         kitti_annos['occluded'].append(instance['occluded'])
                         kitti_annos['alpha'].append(instance['alpha'])
-                        kitti_annos['bbox'].append(instance['bbox'])
+                        if 'bbox' in instance:
+                            kitti_annos['bbox'].append(instance['bbox'])
                         kitti_annos['location'].append(instance['bbox_3d'][:3])
                         kitti_annos['dimensions'].append(
                             instance['bbox_3d'][3:6])
@@ -241,6 +242,8 @@ class KittiMetric(BaseMetric):
                 eval_types = ['bbox']
             else:
                 eval_types = ['bbox', 'bev', '3d']
+                if self.metrics == ['3d']:
+                    eval_types = ['3d']
             ap_result_str, ap_dict_ = kitti_eval(
                 gt_annos, results_dict[name], classes, eval_types=eval_types)
             for ap_type, ap in ap_dict_.items():
@@ -346,7 +349,8 @@ class KittiMetric(BaseMetric):
             info = self.data_infos[sample_idx]
             # Here default used 'CAM2' to compute metric. If you want to
             # use another camera, please modify it.
-            image_shape = (info['images'][self.default_cam_key]['height'],
+            if 'images' in info:
+                image_shape = (info['images'][self.default_cam_key]['height'],
                            info['images'][self.default_cam_key]['width'])
             box_dict = self.convert_valid_bboxes(pred_dicts, info)
             anno = {
@@ -360,35 +364,59 @@ class KittiMetric(BaseMetric):
                 'rotation_y': [],
                 'score': []
             }
-            if len(box_dict['bbox']) > 0:
-                box_2d_preds = box_dict['bbox']
-                box_preds = box_dict['box3d_camera']
-                scores = box_dict['scores']
-                box_preds_lidar = box_dict['box3d_lidar']
-                label_preds = box_dict['label_preds']
-                pred_box_type_3d = box_dict['pred_box_type_3d']
 
-                for box, box_lidar, bbox, score, label in zip(
-                        box_preds, box_preds_lidar, box_2d_preds, scores,
-                        label_preds):
-                    bbox[2:] = np.minimum(bbox[2:], image_shape[::-1])
-                    bbox[:2] = np.maximum(bbox[:2], [0, 0])
-                    anno['name'].append(class_names[int(label)])
-                    anno['truncated'].append(0.0)
-                    anno['occluded'].append(0)
-                    if pred_box_type_3d == CameraInstance3DBoxes:
-                        anno['alpha'].append(-np.arctan2(box[0], box[2]) +
-                                             box[6])
-                    elif pred_box_type_3d == LiDARInstance3DBoxes:
-                        anno['alpha'].append(
-                            -np.arctan2(-box_lidar[1], box_lidar[0]) + box[6])
-                    anno['bbox'].append(bbox)
-                    anno['dimensions'].append(box[3:6])
-                    anno['location'].append(box[:3])
-                    anno['rotation_y'].append(box[6])
-                    anno['score'].append(score)
+            if ('bbox' in box_dict and len(box_dict['bbox']) > 0) or \
+                (self.metrics == ['3d'] and 'box3d_lidar' in box_dict):
+                if self.metrics == ['3d'] and 'bbox' not in box_dict:
+                    box_2d_preds = np.zeros([0, 4])
+                    scores = box_dict['scores']
+                    box_preds_lidar = box_dict['box3d_lidar']
+                    label_preds = box_dict['label_preds']
+                    pred_box_type_3d = box_dict['pred_box_type_3d']
 
-                anno = {k: np.stack(v) for k, v in anno.items()}
+                    for box_lidar, score, label in zip(box_preds_lidar, scores,
+                                                    label_preds):
+                        anno['name'].append(class_names[int(label)])
+                        anno['truncated'].append(0.0)
+                        anno['occluded'].append(0)
+                        if pred_box_type_3d == CameraInstance3DBoxes:
+                            anno['alpha'].append(-np.arctan2(box_lidar[0], box_lidar[2]))
+                        elif pred_box_type_3d == LiDARInstance3DBoxes:
+                            anno['alpha'].append(-np.arctan2(-box_lidar[1], box_lidar[0]))
+                        anno['bbox'].append(box_2d_preds)
+                        anno['dimensions'].append(box_lidar[3:6])
+                        anno['location'].append(box_lidar[:3])
+                        anno['rotation_y'].append(box_lidar[6])
+                        anno['score'].append(score)
+                else:
+                    box_2d_preds = box_dict['bbox']
+                    box_preds = box_dict['box3d_camera']
+                    scores = box_dict['scores']
+                    box_preds_lidar = box_dict['box3d_lidar']
+                    label_preds = box_dict['label_preds']
+                    pred_box_type_3d = box_dict['pred_box_type_3d']
+
+                    for box, box_lidar, bbox, score, label in zip(
+                            box_preds, box_preds_lidar, box_2d_preds, scores,
+                            label_preds):
+                        bbox[2:] = np.minimum(bbox[2:], image_shape[::-1])
+                        bbox[:2] = np.maximum(bbox[:2], [0, 0])
+                        anno['name'].append(class_names[int(label)])
+                        anno['truncated'].append(0.0)
+                        anno['occluded'].append(0)
+                        if pred_box_type_3d == CameraInstance3DBoxes:
+                            anno['alpha'].append(-np.arctan2(box[0], box[2]) +
+                                                box[6])
+                        elif pred_box_type_3d == LiDARInstance3DBoxes:
+                            anno['alpha'].append(
+                                -np.arctan2(-box_lidar[1], box_lidar[0]) + box[6])
+                        anno['bbox'].append(bbox)
+                        anno['dimensions'].append(box[3:6])
+                        anno['location'].append(box[:3])
+                        anno['rotation_y'].append(box[6])
+                        anno['score'].append(score)
+
+                    anno = {k: np.stack(v) for k, v in anno.items()}
             else:
                 anno = {
                     'name': np.array([]),
@@ -592,45 +620,59 @@ class KittiMetric(BaseMetric):
                 sample_idx=sample_idx)
         # Here default used 'CAM2' to compute metric. If you want to
         # use another camera, please modify it.
-        lidar2cam = np.array(
-            info['images'][self.default_cam_key]['lidar2cam']).astype(
+        if self.metrics != ['3d']:
+            lidar2cam = np.array(
+                info['images'][self.default_cam_key]['lidar2cam']).astype(
+                    np.float32)
+            P2 = np.array(info['images'][self.default_cam_key]['cam2img']).astype(
                 np.float32)
-        P2 = np.array(info['images'][self.default_cam_key]['cam2img']).astype(
-            np.float32)
-        img_shape = (info['images'][self.default_cam_key]['height'],
-                     info['images'][self.default_cam_key]['width'])
-        P2 = box_preds.tensor.new_tensor(P2)
+            img_shape = (info['images'][self.default_cam_key]['height'],
+                        info['images'][self.default_cam_key]['width'])
+            P2 = box_preds.tensor.new_tensor(P2)
 
-        if isinstance(box_preds, LiDARInstance3DBoxes):
-            box_preds_camera = box_preds.convert_to(Box3DMode.CAM, lidar2cam)
-            box_preds_lidar = box_preds
-        elif isinstance(box_preds, CameraInstance3DBoxes):
-            box_preds_camera = box_preds
-            box_preds_lidar = box_preds.convert_to(Box3DMode.LIDAR,
-                                                   np.linalg.inv(lidar2cam))
+            if isinstance(box_preds, LiDARInstance3DBoxes):
+                box_preds_camera = box_preds.convert_to(Box3DMode.CAM, lidar2cam)
+                box_preds_lidar = box_preds
+            elif isinstance(box_preds, CameraInstance3DBoxes):
+                box_preds_camera = box_preds
+                box_preds_lidar = box_preds.convert_to(Box3DMode.LIDAR,
+                                                    np.linalg.inv(lidar2cam))
 
-        box_corners = box_preds_camera.corners
-        box_corners_in_image = points_cam2img(box_corners, P2)
-        # box_corners_in_image: [N, 8, 2]
-        minxy = torch.min(box_corners_in_image, dim=1)[0]
-        maxxy = torch.max(box_corners_in_image, dim=1)[0]
-        box_2d_preds = torch.cat([minxy, maxxy], dim=1)
-        # Post-processing
-        # check box_preds_camera
-        image_shape = box_preds.tensor.new_tensor(img_shape)
-        valid_cam_inds = ((box_2d_preds[:, 0] < image_shape[1]) &
-                          (box_2d_preds[:, 1] < image_shape[0]) &
-                          (box_2d_preds[:, 2] > 0) & (box_2d_preds[:, 3] > 0))
-        # check box_preds_lidar
-        if isinstance(box_preds, LiDARInstance3DBoxes):
+            box_corners = box_preds_camera.corners
+            box_corners_in_image = points_cam2img(box_corners, P2)
+            # box_corners_in_image: [N, 8, 2]
+            minxy = torch.min(box_corners_in_image, dim=1)[0]
+            maxxy = torch.max(box_corners_in_image, dim=1)[0]
+            box_2d_preds = torch.cat([minxy, maxxy], dim=1)
+            # Post-processing
+            # check box_preds_camera
+            image_shape = box_preds.tensor.new_tensor(img_shape)
+            valid_cam_inds = ((box_2d_preds[:, 0] < image_shape[1]) &
+                            (box_2d_preds[:, 1] < image_shape[0]) &
+                            (box_2d_preds[:, 2] > 0) & (box_2d_preds[:, 3] > 0))
+            # check box_preds_lidar
+            if isinstance(box_preds, LiDARInstance3DBoxes):
+                limit_range = box_preds.tensor.new_tensor(self.pcd_limit_range)
+                valid_pcd_inds = ((box_preds_lidar.center > limit_range[:3]) &
+                                (box_preds_lidar.center < limit_range[3:]))
+                valid_inds = valid_cam_inds & valid_pcd_inds.all(-1)
+            else:
+                valid_inds = valid_cam_inds
+        elif isinstance(box_preds, LiDARInstance3DBoxes):
             limit_range = box_preds.tensor.new_tensor(self.pcd_limit_range)
-            valid_pcd_inds = ((box_preds_lidar.center > limit_range[:3]) &
-                              (box_preds_lidar.center < limit_range[3:]))
-            valid_inds = valid_cam_inds & valid_pcd_inds.all(-1)
-        else:
-            valid_inds = valid_cam_inds
+            valid_pcd_inds = ((box_preds.center > limit_range[:3]) &
+                            (box_preds.center < limit_range[3:]))
+            valid_inds = valid_pcd_inds.all(-1)
 
         if valid_inds.sum() > 0:
+            if self.metrics == ['3d']:
+                return dict(
+                    pred_box_type_3d=type(box_preds),
+                    box3d_lidar=box_preds[valid_inds].numpy(),
+                    scores=scores[valid_inds].numpy(),
+                    label_preds=labels[valid_inds].numpy(),
+                    sample_idx=sample_idx)
+                
             return dict(
                 bbox=box_2d_preds[valid_inds, :].numpy(),
                 pred_box_type_3d=type(box_preds),

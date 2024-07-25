@@ -685,12 +685,15 @@ def kitti_eval(gt_annos,
                             [0.5, 0.25, 0.25, 0.5, 0.25],
                             [0.5, 0.25, 0.25, 0.5, 0.25]])
     min_overlaps = np.stack([overlap_0_7, overlap_0_5], axis=0)  # [2, 3, 5]
+    # class_to_name = {
+    #     0: 'Car',
+    #     1: 'Pedestrian',
+    #     2: 'Cyclist',
+    #     3: 'Van',
+    #     4: 'Person_sitting',
+    # }
     class_to_name = {
-        0: 'Car',
-        1: 'Pedestrian',
-        2: 'Cyclist',
-        3: 'Van',
-        4: 'Person_sitting',
+        0: 'Dunnage'
     }
     name_to_class = {v: n for n, v in class_to_name.items()}
     if not isinstance(current_classes, (list, tuple)):
@@ -705,21 +708,21 @@ def kitti_eval(gt_annos,
     min_overlaps = min_overlaps[:, :, current_classes]
     result = ''
     # check whether alpha is valid
-    compute_aos = False
-    pred_alpha = False
-    valid_alpha_gt = False
-    for anno in dt_annos:
-        mask = (anno['alpha'] != -10)
-        if anno['alpha'][mask].shape[0] != 0:
-            pred_alpha = True
-            break
-    for anno in gt_annos:
-        if anno['alpha'][0] != -10:
-            valid_alpha_gt = True
-            break
-    compute_aos = (pred_alpha and valid_alpha_gt)
-    if compute_aos:
-        eval_types.append('aos')
+    # compute_aos = False
+    # pred_alpha = False
+    # valid_alpha_gt = False
+    # for anno in dt_annos:
+    #     mask = (anno['alpha'] != -10)
+    #     if anno['alpha'][mask].shape[0] != 0:
+    #         pred_alpha = True
+    #         break
+    # for anno in gt_annos:
+    #     if anno['alpha'][0] != -10:
+    #         valid_alpha_gt = True
+    #         break
+    # compute_aos = (pred_alpha and valid_alpha_gt)
+    # if compute_aos:
+    #     eval_types.append('aos')
 
     mAP11_bbox, mAP11_bev, mAP11_3d, mAP11_aos, mAP40_bbox, mAP40_bev, \
         mAP40_3d, mAP40_aos = do_eval(gt_annos, dt_annos,

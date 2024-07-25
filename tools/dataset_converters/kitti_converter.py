@@ -325,6 +325,13 @@ def _create_reduced_point_cloud(data_path,
     """
     kitti_infos = mmengine.load(info_path)
 
+    if isinstance(kitti_infos, dict):
+        if 'infos' in kitti_infos.keys():
+            kitti_infos = kitti_infos['infos']
+        elif 'data_list' in kitti_infos.keys():
+            print("setting kitti_infos to kitti_infos['data_list']")
+            kitti_infos = kitti_infos['data_list']
+
     for info in mmengine.track_iter_progress(kitti_infos):
         pc_info = info['point_cloud']
         image_info = info['image']
