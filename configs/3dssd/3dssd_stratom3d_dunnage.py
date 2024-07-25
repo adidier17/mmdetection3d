@@ -6,6 +6,7 @@ _base_ = [
 
 # model settings
 model = dict(
+    backbone=dict(in_channels=3),
     bbox_head=dict(
         num_classes=1,
         bbox_coder=dict(type="AnchorFreeBBoxCoder", num_dir_bins=12, with_rot=True),

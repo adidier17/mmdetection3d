@@ -154,8 +154,8 @@ test_dataloader = dict(
 )
 val_evaluator = dict(
     type="KittiMetric",
-    ann_file=data_root + "stratom3d_infos_val.pkl",
-    metric="bbox",
+    ann_file=data_root + "/stratom3d_infos_val.pkl",
+    metric="3d",
     backend_args=backend_args,
 )
 test_evaluator = val_evaluator
